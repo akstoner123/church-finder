@@ -37,11 +37,12 @@
     .popup-dir:hover { background: #b8955a; color: white; }
     #toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); background: rgba(26,24,21,0.85); color: white; padding: 8px 18px; border-radius: 50px; font-family: 'DM Sans', sans-serif; font-size: 0.82rem; z-index: 2000; opacity: 0; transition: opacity 0.25s; pointer-events: none; white-space: nowrap; }
     #toast.show { opacity: 1; }
-    #map-overlay { display: none; position: absolute; inset: 0; z-index: 900; background: rgba(0,0,0,0.42); align-items: center; justify-content: center; flex-direction: column; gap: 10px; cursor: pointer; user-select: none; }
-    #map-overlay .ov-icon { font-size: 38px; }
-    #map-overlay .ov-title { color: #fff; font-family: 'DM Sans', sans-serif; font-size: 16px; font-weight: 600; text-shadow: 0 1px 4px rgba(0,0,0,0.5); }
-    #map-overlay .ov-hint { color: rgba(255,255,255,0.75); font-family: 'DM Sans', sans-serif; font-size: 13px; }
-    @media (hover: none) and (pointer: coarse) { #map-overlay { display: flex; } #map-overlay.active { display: none; } }
+    #map-overlay { display: none; position: absolute; inset: 0; z-index: 900; background: rgba(0,0,0,0.45); align-items: center; justify-content: center; flex-direction: column; gap: 12px; cursor: pointer; user-select: none; -webkit-user-select: none; }
+    #map-overlay.mobile { display: flex; }
+    #map-overlay.active { display: none !important; }
+    #map-overlay .ov-icon { font-size: 40px; }
+    #map-overlay .ov-title { color: #fff; font-family: 'DM Sans', sans-serif; font-size: 17px; font-weight: 600; text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+    #map-overlay .ov-hint { color: rgba(255,255,255,0.8); font-family: 'DM Sans', sans-serif; font-size: 13px; }
     @media (max-width: 500px) { #search-bar { min-width: 0; width: 94vw; padding: 7px 8px 7px 14px; } #search-bar .logo { display: none; } #search-bar .divider { display: none; } #zipInput { width: 90px; } }
   </style>
 </head>
@@ -70,22 +71,97 @@
 <script>
   const API_URL = 'https://script.google.com/macros/s/AKfycbz4WWfiJCPMbc9ZMidVBmjgQmE_0Wiy9eJPzpjH4-n7_ZE4J_Xsvvv_JgqbQ8wVVRhy8g/exec';
   let map, markers = [], churches = [], searchCircle = null;
+
+  // JS-based mobile detection — much more reliable than CSS media queries in iframes
+  function isMobile() {
+    return /Android|iPhone|iPad|iPod|Mobile|Touch/i.test(navigator.userAgent) ||
+           (navigator.maxTouchPoints > 1) ||
+           (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  }
+
+  window.addEventListener('load', function() {
+    if (isMobile()) {
+      document.getElementById('map-overlay').classList.add('mobile');
+    }
+    initMap();
+  });
+
+  function activateMap() {
+    document.getElementById('map-overlay').classList.add('active');
+  }
+
+  // When user touches outside the map area, re-show the overlay
+  document.addEventListener('touchstart', function(e) {
+    const overlay = document.getElementById('map-overlay');
+    if (!overlay.classList.contains('active')) return;
+    const mapEl = document.getElementById('map');
+    if (!mapEl.contains(e.target)) {
+      overlay.classList.remove('active');
+    }
+  }, { passive: true });
+
   const toTitle = s => s ? s.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase()) : '';
   const churchIcon = L.divIcon({ html: '<div style="width:34px;height:34px;background:#2a2825;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 10px rgba(0,0,0,0.35);border:2.5px solid #b8955a;">⛪</div>', className: '', iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-20] });
   const activeIcon = L.divIcon({ html: '<div style="width:38px;height:38px;background:#b8955a;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 3px 14px rgba(0,0,0,0.4);border:2.5px solid white;">⛪</div>', className: '', iconSize: [38,38], iconAnchor: [19,19], popupAnchor: [0,-22] });
-  function activateMap() { document.getElementById('map-overlay').classList.add('active'); }
-  document.addEventListener('touchstart', function(e) { const o = document.getElementById('map-overlay'); if (!o || !o.classList.contains('active')) return; if (!document.getElementById('map').contains(e.target)) o.classList.remove('active'); }, { passive: true });
-  function initMap() { map = L.map('map', { zoomControl: true, scrollWheelZoom: false, tap: false }).setView([37.5, -96], 4); L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 }).addTo(map); loadChurches(); }
-  async function loadChurches() { try { const res = await fetch(API_URL + '?action=getAll'); const data = await res.json(); churches = (data.churches || []).map(c => ({ ...c, lat: parseFloat(c.lat) || null, lng: parseFloat(c.lng) || null, id: String(c.id) })); renderMarkers(churches); const pinned = churches.filter(c => c.lat && c.lng); if (pinned.length > 1) map.fitBounds(L.latLngBounds(pinned.map(c => [c.lat, c.lng])).pad(0.2)); else if (pinned.length === 1) map.setView([pinned[0].lat, pinned[0].lng], 13); } catch(e) { showToast('Could not load churches — please refresh'); } }
-  function renderMarkers(list) { markers.forEach(m => map.removeLayer(m)); markers = []; list.forEach(c => { if (!c.lat || !c.lng) return; const du = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(c.address + ', ' + c.city + ', ' + c.state + ' ' + c.zip); const popupHtml = '<div class="popup-inner">' + (c.denom ? '<div class="popup-denom">' + c.denom + '</div>' : '') + '<div class="popup-name">' + toTitle(c.name) + '</div>' + '<div class="popup-row">📍 ' + toTitle(c.address) + ', ' + toTitle(c.city) + ', ' + c.state + ' ' + c.zip + '</div>' + (c.phone ? '<div class="popup-row">📞 ' + c.phone + '</div>' : '') + (c.times ? '<div class="popup-row">🕐 ' + c.times + '</div>' : '') + (c.website ? '<div class="popup-row">🌐 <a href="' + c.website + '" target="_blank">' + c.website.replace(/^https?:\/\/(www\.)?/,'') + '</a></div>' : '') + '<a class="popup-dir" href="' + du + '" target="_blank">🗺 Get Directions</a></div>'; const m = L.marker([c.lat, c.lng], { icon: churchIcon }).addTo(map).bindPopup(L.popup({ maxWidth: 280 }).setContent(popupHtml)); m.on('popupopen', () => m.setIcon(activeIcon)); m.on('popupclose', () => m.setIcon(churchIcon)); m.churchId = c.id; markers.push(m); }); }
+
+  function initMap() {
+    map = L.map('map', { zoomControl: true, scrollWheelZoom: false, tap: false }).setView([37.5, -96], 4);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 }).addTo(map);
+    loadChurches();
+  }
+
+  async function loadChurches() {
+    try {
+      const res = await fetch(API_URL + '?action=getAll');
+      const data = await res.json();
+      churches = (data.churches || []).map(c => ({ ...c, lat: parseFloat(c.lat) || null, lng: parseFloat(c.lng) || null, id: String(c.id) }));
+      renderMarkers(churches);
+      const pinned = churches.filter(c => c.lat && c.lng);
+      if (pinned.length > 1) map.fitBounds(L.latLngBounds(pinned.map(c => [c.lat, c.lng])).pad(0.2));
+      else if (pinned.length === 1) map.setView([pinned[0].lat, pinned[0].lng], 13);
+    } catch(e) { showToast('Could not load churches — please refresh'); }
+  }
+
+  function renderMarkers(list) {
+    markers.forEach(m => map.removeLayer(m)); markers = [];
+    list.forEach(c => {
+      if (!c.lat || !c.lng) return;
+      const du = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(c.address + ', ' + c.city + ', ' + c.state + ' ' + c.zip);
+      const popupHtml = '<div class="popup-inner">' + (c.denom ? '<div class="popup-denom">' + c.denom + '</div>' : '') + '<div class="popup-name">' + toTitle(c.name) + '</div>' + '<div class="popup-row">📍 ' + toTitle(c.address) + ', ' + toTitle(c.city) + ', ' + c.state + ' ' + c.zip + '</div>' + (c.phone ? '<div class="popup-row">📞 ' + c.phone + '</div>' : '') + (c.times ? '<div class="popup-row">🕐 ' + c.times + '</div>' : '') + (c.website ? '<div class="popup-row">🌐 <a href="' + c.website + '" target="_blank">' + c.website.replace(/^https?:\/\/(www\.)?/,'') + '</a></div>' : '') + '<a class="popup-dir" href="' + du + '" target="_blank">🗺 Get Directions</a></div>';
+      const m = L.marker([c.lat, c.lng], { icon: churchIcon }).addTo(map).bindPopup(L.popup({ maxWidth: 280 }).setContent(popupHtml));
+      m.on('popupopen', () => m.setIcon(activeIcon));
+      m.on('popupclose', () => m.setIcon(churchIcon));
+      m.churchId = c.id; markers.push(m);
+    });
+  }
+
   function haversine(lat1, lng1, lat2, lng2) { const R = 3958.8, dLat = (lat2-lat1)*Math.PI/180, dLng = (lng2-lng1)*Math.PI/180; return R * 2 * Math.asin(Math.sqrt(Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2)); }
-  async function doSearch() { const zip = document.getElementById('zipInput').value.trim(); if (!/^\d{5}$/.test(zip)) { showToast('Please enter a valid 5-digit ZIP code'); return; } const radius = parseFloat(document.getElementById('radiusSelect').value); showToast('Searching…'); try { const res = await fetch('https://nominatim.openstreetmap.org/search?postalcode=' + zip + '&country=US&format=json'); const data = await res.json(); if (!data.length) { showToast('ZIP code not found'); return; } const center = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }; if (searchCircle) map.removeLayer(searchCircle); searchCircle = L.circle([center.lat, center.lng], { radius: radius * 1609.34, color: '#b8955a', fillColor: '#b8955a', fillOpacity: 0.06, weight: 1.5, dashArray: '5,5' }).addTo(map); const nearby = churches.filter(c => c.lat && c.lng).map(c => ({ ...c, dist: haversine(center.lat, center.lng, c.lat, c.lng) })).filter(c => c.dist <= radius).sort((a,b) => a.dist - b.dist); renderMarkers(nearby); document.getElementById('clearBtn').classList.add('visible'); if (nearby.length) { map.fitBounds(L.latLngBounds(nearby.map(c => [c.lat, c.lng])).pad(0.3)); showPill('Found ' + nearby.length + ' church' + (nearby.length !== 1 ? 'es' : '') + ' within ' + radius + ' mi'); showToast('Found ' + nearby.length + ' church' + (nearby.length !== 1 ? 'es' : '')); } else { map.setView([center.lat, center.lng], 11); showPill('No churches found within ' + radius + ' mi — try wider'); showToast('No churches found — try a wider radius'); } } catch(e) { showToast('Search failed — check your connection'); } }
+
+  async function doSearch() {
+    const zip = document.getElementById('zipInput').value.trim();
+    if (!/^\d{5}$/.test(zip)) { showToast('Please enter a valid 5-digit ZIP code'); return; }
+    const radius = parseFloat(document.getElementById('radiusSelect').value);
+    showToast('Searching…');
+    try {
+      const res = await fetch('https://nominatim.openstreetmap.org/search?postalcode=' + zip + '&country=US&format=json');
+      const data = await res.json();
+      if (!data.length) { showToast('ZIP code not found'); return; }
+      const center = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      if (searchCircle) map.removeLayer(searchCircle);
+      searchCircle = L.circle([center.lat, center.lng], { radius: radius * 1609.34, color: '#b8955a', fillColor: '#b8955a', fillOpacity: 0.06, weight: 1.5, dashArray: '5,5' }).addTo(map);
+      const nearby = churches.filter(c => c.lat && c.lng).map(c => ({ ...c, dist: haversine(center.lat, center.lng, c.lat, c.lng) })).filter(c => c.dist <= radius).sort((a,b) => a.dist - b.dist);
+      renderMarkers(nearby);
+      document.getElementById('clearBtn').classList.add('visible');
+      if (nearby.length) { map.fitBounds(L.latLngBounds(nearby.map(c => [c.lat, c.lng])).pad(0.3)); showPill('Found ' + nearby.length + ' church' + (nearby.length !== 1 ? 'es' : '') + ' within ' + radius + ' mi'); showToast('Found ' + nearby.length + ' church' + (nearby.length !== 1 ? 'es' : '')); }
+      else { map.setView([center.lat, center.lng], 11); showPill('No churches found within ' + radius + ' mi — try wider'); showToast('No churches found — try a wider radius'); }
+    } catch(e) { showToast('Search failed — check your connection'); }
+  }
+
   function doClear() { document.getElementById('zipInput').value = ''; document.getElementById('clearBtn').classList.remove('visible'); if (searchCircle) { map.removeLayer(searchCircle); searchCircle = null; } hidePill(); renderMarkers(churches); const pinned = churches.filter(c => c.lat && c.lng); if (pinned.length > 1) map.fitBounds(L.latLngBounds(pinned.map(c => [c.lat, c.lng])).pad(0.2)); }
   let pillTimer; function showPill(msg) { const p = document.getElementById('result-pill'); p.textContent = msg; p.classList.add('show'); clearTimeout(pillTimer); pillTimer = setTimeout(() => p.classList.remove('show'), 4000); }
   function hidePill() { document.getElementById('result-pill').classList.remove('show'); }
   let toastTimer; function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2500); }
   document.getElementById('zipInput').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
-  window.addEventListener('load', initMap);
 </script>
 </body>
 </html>
