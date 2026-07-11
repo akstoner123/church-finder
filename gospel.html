@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gospel Section</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  .gospel-section {
+    font-family: 'Inter', sans-serif;
+    background: #f5f3ef;
+    width: 100%;
+  }
+
+  /* ── Grid ── */
+  .gospel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px;
+    background: #e0ddd8;
+  }
+
+  /* ── Panel base ── */
+  .gospel-panel {
+    position: relative;
+    overflow: hidden;
+    height: 300px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 2.25rem;
+    cursor: default;
+    transition: height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .gospel-panel.p1 { background: #eef2f7; }
+  .gospel-panel.p2 { background: #f7f2ee; }
+  .gospel-panel.p3 { background: #eef5f0; }
+  .gospel-panel.p4 { background: #f2f0f7; }
+
+  /* Overlay */
+  .gospel-panel .panel-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(245,243,239,0.95) 0%, rgba(245,243,239,0.4) 55%, transparent 100%);
+    transition: background 0.4s;
+    pointer-events: none;
+  }
+
+  /* Large watermark symbol */
+  .gospel-panel .symbol {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -58%);
+    opacity: 0.18;
+    transition: opacity 0.35s, transform 0.4s;
+    pointer-events: none;
+  }
+
+  /* Small corner icon */
+  .gospel-panel .icon-wrap {
+    position: absolute;
+    top: 1.75rem; right: 1.75rem;
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(160,130,80,0.35);
+    background: rgba(255,255,255,0.7);
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.3s, transform 0.3s;
+  }
+
+  /* Content */
+  .gospel-panel .content {
+    position: relative;
+    z-index: 2;
+  }
+  .gospel-panel .num {
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #a07840;
+    margin-bottom: 9px;
+    font-weight: 500;
+    display: block;
+  }
+  .gospel-panel .title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 27px;
+    font-weight: 600;
+    color: #1a1a1a;
+    line-height: 1.2;
+    margin-bottom: 0;
+    transition: margin-bottom 0.3s;
+  }
+  .gospel-panel .reveal {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.42s cubic-bezier(0.4,0,0.2,1) 0.05s, opacity 0.35s ease 0.1s;
+  }
+  .gospel-panel .body-text {
+    font-size: 13.5px;
+    line-height: 1.85;
+    color: rgba(30,25,20,0.62);
+    font-weight: 300;
+    margin-bottom: 16px;
+    margin-top: 14px;
+  }
+  .gospel-panel .verse {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: 13px;
+    color: #8a6530;
+    border-left: 2px solid rgba(160,130,80,0.45);
+    padding-left: 12px;
+    line-height: 1.7;
+  }
+  .gospel-panel .ref {
+    display: block;
+    font-style: normal;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: rgba(160,130,80,0.6);
+    margin-top: 5px;
+  }
+
+  /* ── Desktop hover states ── */
+  @media (hover: hover) and (pointer: fine) {
+    .gospel-panel:hover { height: 440px; }
+    .gospel-panel:hover .panel-overlay {
+      background: linear-gradient(to top, rgba(245,243,239,1) 0%, rgba(245,243,239,0.85) 100%);
+    }
+    .gospel-panel:hover .symbol {
+      opacity: 0.07;
+      transform: translate(-50%, -58%) scale(1.05);
+    }
+    .gospel-panel:hover .icon-wrap {
+      opacity: 0;
+      transform: scale(0.75);
+    }
+    .gospel-panel:hover .title { margin-bottom: 0; }
+    .gospel-panel:hover .reveal { max-height: 280px; opacity: 1; }
+  }
+
+  /* ── Mobile: tap to expand ── */
+  @media (hover: none), (pointer: coarse) {
+    .gospel-grid {
+      grid-template-columns: 1fr;
+      gap: 3px;
+    }
+    .gospel-panel {
+      height: auto;
+      min-height: 180px;
+      padding: 2rem 1.75rem;
+      cursor: pointer;
+    }
+    .gospel-panel .symbol {
+      opacity: 0.12;
+      top: 40%; left: 50%;
+    }
+    .gospel-panel .icon-wrap {
+      width: 44px; height: 44px;
+      top: 1.5rem; right: 1.5rem;
+    }
+    .gospel-panel .title { font-size: 23px; }
+    .gospel-panel .panel-overlay {
+      background: linear-gradient(to top, rgba(245,243,239,0.97) 0%, rgba(245,243,239,0.5) 60%, transparent 100%);
+    }
+
+    /* expanded state via JS class */
+    .gospel-panel.expanded .panel-overlay {
+      background: linear-gradient(to top, rgba(245,243,239,1) 0%, rgba(245,243,239,0.9) 100%);
+    }
+    .gospel-panel.expanded .symbol { opacity: 0.05; }
+    .gospel-panel.expanded .icon-wrap { opacity: 0; transform: scale(0.75); }
+    .gospel-panel.expanded .title { margin-bottom: 0; }
+    .gospel-panel.expanded .reveal { max-height: 400px; opacity: 1; }
+
+    /* tap hint */
+    .gospel-panel::after {
+      content: 'Tap to read';
+      position: absolute;
+      bottom: 1.5rem; right: 1.75rem;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(160,130,80,0.55);
+      font-family: 'Inter', sans-serif;
+      transition: opacity 0.3s;
+    }
+    .gospel-panel.expanded::after { opacity: 0; }
+  }
+
+  /* ── Narrow phones ── */
+  @media (max-width: 400px) {
+    .gospel-panel { padding: 1.75rem 1.25rem; }
+    .gospel-panel .title { font-size: 21px; }
+    .gospel-panel .body-text { font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+<section class="gospel-section">
+  <div class="gospel-grid">
+
+    <!-- Panel 1 -->
+    <div class="gospel-panel p1">
+      <div class="panel-overlay"></div>
+      <!-- watermark -->
+      <svg class="symbol" width="220" height="220" viewBox="0 0 200 200" fill="none" aria-hidden="true">
+        <circle cx="100" cy="38" r="28" stroke="#1a3a6a" stroke-width="8"></circle>
+        <line x1="100" y1="66" x2="100" y2="134" stroke="#c04030" stroke-width="8" stroke-dasharray="16 10"></line>
+        <circle cx="100" cy="162" r="28" stroke="#888" stroke-width="8"></circle>
+      </svg>
+      <!-- corner icon -->
+      <div class="icon-wrap" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 200 200" fill="none">
+          <circle cx="100" cy="38" r="22" stroke="#a07840" stroke-width="10"></circle>
+          <line x1="100" y1="60" x2="100" y2="140" stroke="#c04030" stroke-width="9" stroke-dasharray="14 10"></line>
+          <circle cx="100" cy="162" r="22" stroke="#aaa" stroke-width="10"></circle>
+        </svg>
+      </div>
+      <div class="content">
+        <span class="num">01 — The problem</span>
+        <h2 class="title">Something is broken between us and God</h2>
+        <div class="reveal">
+          <p class="body-text">We all do wrong. That wrongdoing — the Bible calls it sin — creates a wall between us and God. Nobody is exempt.</p>
+          <blockquote class="verse">
+            For all have sinned and fall short of the glory of God.
+            <cite class="ref">Romans 3:23</cite>
+          </blockquote>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 2 -->
+    <div class="gospel-panel p2">
+      <div class="panel-overlay"></div>
+      <svg class="symbol" width="220" height="220" viewBox="0 0 200 200" fill="none" aria-hidden="true">
+        <circle cx="100" cy="28" r="22" fill="#a07840" opacity="0.9"></circle>
+        <line x1="100" y1="50" x2="100" y2="86" stroke="#a07840" stroke-width="8" stroke-dasharray="12 8"></line>
+        <rect x="54" y="88" width="92" height="36" rx="8" stroke="#c04030" stroke-width="8"></rect>
+        <line x1="100" y1="124" x2="100" y2="162" stroke="#888" stroke-width="8" stroke-dasharray="12 8"></line>
+        <circle cx="100" cy="176" r="18" stroke="#aaa" stroke-width="7"></circle>
+      </svg>
+      <div class="icon-wrap" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 200 200" fill="none">
+          <circle cx="100" cy="28" r="18" fill="#a07840" opacity="0.85"></circle>
+          <line x1="100" y1="46" x2="100" y2="86" stroke="#a07840" stroke-width="8" stroke-dasharray="12 8"></line>
+          <rect x="58" y="88" width="84" height="30" rx="6" stroke="#c04030" stroke-width="8"></rect>
+          <line x1="100" y1="118" x2="100" y2="158" stroke="#aaa" stroke-width="8" stroke-dasharray="12 8"></line>
+          <circle cx="100" cy="170" r="16" stroke="#aaa" stroke-width="7"></circle>
+        </svg>
+      </div>
+      <div class="content">
+        <span class="num">02 — The consequence</span>
+        <h2 class="title">That separation has a cost</h2>
+        <div class="reveal">
+          <p class="body-text">Left unfixed, sin leads to permanent separation from God. But the same verse that says that also offers a way out — a free gift.</p>
+          <blockquote class="verse">
+            The wages of sin is death, but the gift of God is eternal life in Christ Jesus our Lord.
+            <cite class="ref">Romans 6:23</cite>
+          </blockquote>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 3 -->
+    <div class="gospel-panel p3">
+      <div class="panel-overlay"></div>
+      <svg class="symbol" width="220" height="220" viewBox="0 0 200 200" fill="none" aria-hidden="true">
+        <rect x="82" y="14" width="36" height="172" rx="8" fill="#2a6a3a" opacity="0.75"></rect>
+        <rect x="24" y="56" width="152" height="36" rx="8" fill="#2a6a3a" opacity="0.6"></rect>
+      </svg>
+      <div class="icon-wrap" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 200 200" fill="none">
+          <rect x="84" y="18" width="32" height="164" rx="6" fill="#a07840" opacity="0.7"></rect>
+          <rect x="28" y="62" width="144" height="32" rx="6" fill="#a07840" opacity="0.55"></rect>
+        </svg>
+      </div>
+      <div class="content">
+        <span class="num">03 — The solution</span>
+        <h2 class="title">God sent Jesus to pay what we owed</h2>
+        <div class="reveal">
+          <p class="body-text">Jesus took the punishment for our sin when he died on the cross — then rose from the dead. He did it before you ever asked. That is what love looks like.</p>
+          <blockquote class="verse">
+            While we were still sinners, Christ died for us.
+            <cite class="ref">Romans 5:8</cite>
+          </blockquote>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 4 -->
+    <div class="gospel-panel p4">
+      <div class="panel-overlay"></div>
+      <svg class="symbol" width="220" height="220" viewBox="0 0 200 200" fill="none" aria-hidden="true">
+        <circle cx="100" cy="100" r="82" stroke="#3a2a6a" stroke-width="8" opacity="0.6"></circle>
+        <circle cx="100" cy="100" r="56" fill="#3a2a6a" opacity="0.1"></circle>
+        <path d="M62 100 L86 126 L142 68" stroke="#3a2a6a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+      <div class="icon-wrap" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 200 200" fill="none">
+          <circle cx="100" cy="100" r="78" stroke="#a07840" stroke-width="8"></circle>
+          <circle cx="100" cy="100" r="52" fill="rgba(160,120,64,0.1)"></circle>
+          <path d="M65 100 L88 124 L140 72" stroke="#a07840" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </div>
+      <div class="content">
+        <span class="num">04 — Your move</span>
+        <h2 class="title">Turn, believe, and be saved</h2>
+        <div class="reveal">
+          <p class="body-text">Repentance means turning — away from sin and toward God. Not perfection, just a genuine change of direction. Pair that with trusting Jesus as Lord and the door is open right now.</p>
+          <blockquote class="verse">
+            Declare "Jesus is Lord" and believe God raised him from the dead, and you will be saved.
+            <cite class="ref">Romans 10:9</cite>
+          </blockquote>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+<script>
+  // Mobile tap-to-expand (only runs on touch devices)
+  if (window.matchMedia('(hover: none), (pointer: coarse)').matches) {
+    document.querySelectorAll('.gospel-panel').forEach(function(panel) {
+      panel.addEventListener('click', function() {
+        var isOpen = panel.classList.contains('expanded');
+        // close all
+        document.querySelectorAll('.gospel-panel').forEach(function(p) {
+          p.classList.remove('expanded');
+        });
+        // open tapped one if it wasn't already open
+        if (!isOpen) panel.classList.add('expanded');
+      });
+    });
+  }
+</script>
+</body>
+</html>
