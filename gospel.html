@@ -335,6 +335,25 @@
       });
     });
   }
+
+  // Tell the page embedding this diagram how tall it is, so the frame can
+  // grow and shrink with it instead of clipping expanded panels.
+  (function() {
+    if (window.parent === window) return;
+    var section = document.querySelector('.gospel-section');
+    var last = 0;
+    function send() {
+      var h = Math.ceil(section.getBoundingClientRect().height);
+      if (h && h !== last) {
+        last = h;
+        window.parent.postMessage({ type: 'tc-gospel-height', height: h }, '*');
+      }
+    }
+    if (window.ResizeObserver) new ResizeObserver(send).observe(section);
+    window.addEventListener('load', send);
+    window.addEventListener('resize', send);
+    setTimeout(send, 300);
+  })();
 </script>
 </body>
 </html>
