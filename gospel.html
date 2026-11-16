@@ -25,13 +25,13 @@
   .gospel-panel {
     position: relative;
     overflow: hidden;
-    height: 300px;
+    min-height: 300px;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
     padding: 2.25rem;
     cursor: default;
-    transition: height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: min-height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .gospel-panel.p1 { background: #eef2f7; }
   .gospel-panel.p2 { background: #f7f2ee; }
@@ -125,7 +125,7 @@
 
   /* ── Desktop hover states ── */
   @media (hover: hover) and (pointer: fine) {
-    .gospel-panel:hover { height: 440px; }
+    .gospel-panel:hover { min-height: 440px; }
     .gospel-panel:hover .panel-overlay {
       background: linear-gradient(to top, rgba(245,243,239,1) 0%, rgba(245,243,239,0.85) 100%);
     }
