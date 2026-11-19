@@ -69,6 +69,10 @@
 </div>
 <script>
   const START = { center: [-40, 28], zoom: 2 };
+  // Church markers stay hidden on the zoomed-out globe until you zoom in this far (2 clicks of +) or search
+  const MARKER_MIN_ZOOM = 4;
+  const CHURCH_LAYERS = ['clusters', 'church-points', 'church-active'];
+  function setMarkersAlwaysVisible(on) { CHURCH_LAYERS.forEach(l => map.setLayerZoomRange(l, on ? 0 : MARKER_MIN_ZOOM, 24)); }
   const GOLD = '#b8955a', DARK = '#2a2825';
   let map, churches = [], popup = null, spinning = true, mapReady = false, dataReady = false;
   const byId = {};
@@ -121,7 +125,9 @@
       });
       map.on('click', 'church-points', e => { stopSpin(); openPopup(e.features[0]); });
       ['clusters', 'church-points'].forEach(l => { map.on('mouseenter', l, () => map.getCanvas().style.cursor = 'pointer'); map.on('mouseleave', l, () => map.getCanvas().style.cursor = ''); });
+      setMarkersAlwaysVisible(false);
       mapReady = true; showData(churches);
+      setTimeout(() => { if (spinning) showPill('Zoom in or search to see churches'); }, 1200);
       map.on('moveend', spin);
       spin();
     });
@@ -213,6 +219,7 @@
         where = 'within ' + radius + ' mi of ' + label;
       }
       map.getSource('search-area').setData({ type: 'Feature', geometry: shape, properties: {} });
+      setMarkersAlwaysVisible(true);
       showData(found);
       document.getElementById('clearBtn').classList.add('visible');
       const n = found.length, noun = 'church' + (n !== 1 ? 'es' : ''), msg = (n ? 'Found ' + n + ' ' + noun + ' ' : 'No churches found ') + where;
@@ -225,7 +232,7 @@
   function doClear() {
     document.getElementById('placeInput').value = '';
     document.getElementById('clearBtn').classList.remove('visible');
-    if (mapReady) { map.getSource('search-area').setData(emptyFC()); showData(churches); map.flyTo({ center: START.center, zoom: START.zoom, duration: 1800 }); }
+    if (mapReady) { map.getSource('search-area').setData(emptyFC()); setMarkersAlwaysVisible(false); showData(churches); map.flyTo({ center: START.center, zoom: START.zoom, duration: 1800 }); }
     hidePill();
   }
   let pillTimer; function showPill(msg){const p=document.getElementById('result-pill');p.textContent=msg;p.classList.add('show');clearTimeout(pillTimer);pillTimer=setTimeout(()=>p.classList.remove('show'),4000);} function hidePill(){document.getElementById('result-pill').classList.remove('show');}
