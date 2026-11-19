@@ -46,6 +46,7 @@
     #map-overlay .ov-icon { font-size: 40px; }
     #map-overlay .ov-title { color: #fff; font-family: 'DM Sans', sans-serif; font-size: 17px; font-weight: 600; text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
     #map-overlay .ov-hint { color: rgba(255,255,255,0.8); font-family: 'DM Sans', sans-serif; font-size: 13px; }
+    @media (max-width: 600px) { .maplibregl-ctrl-top-left { top: 62px; } }
     @media (max-width: 500px) { #search-bar { min-width: 0; width: 94vw; padding: 7px 8px 7px 14px; } #search-bar .logo { display: none; } #search-bar .divider { display: none; } #placeInput { width: auto; } }
   </style>
 </head>
@@ -73,7 +74,8 @@
   <div class="ov-hint">Scroll past to continue browsing</div>
 </div>
 <script>
-  const START = { center: [-40, 28], zoom: 2 };
+  // Smaller starting zoom on phones so the whole globe fits the narrow screen
+  const START = { center: [-40, 28], zoom: window.innerWidth < 600 ? 1.05 : 2 };
   // Church markers stay hidden on the zoomed-out globe until you zoom in this far (2 clicks of +) or search
   const MARKER_MIN_ZOOM = 4;
   const CHURCH_LAYERS = ['clusters', 'church-points', 'church-active'];
@@ -131,6 +133,8 @@
       map.on('click', 'church-points', e => { stopSpin(); openPopup(e.features[0]); });
       ['clusters', 'church-points'].forEach(l => { map.on('mouseenter', l, () => map.getCanvas().style.cursor = 'pointer'); map.on('mouseleave', l, () => map.getCanvas().style.cursor = ''); });
       setMarkersAlwaysVisible(false);
+      // Phones: keep the map credits collapsed behind their (i) button
+      if (window.innerWidth < 600) { const a = document.querySelector('.maplibregl-ctrl-attrib'); if (a) a.classList.remove('maplibregl-compact-show'); }
       mapReady = true; showData(churches);
       setTimeout(() => { if (spinning) showPill('Zoom in or search to see churches'); }, 1200);
       map.on('moveend', spin);
