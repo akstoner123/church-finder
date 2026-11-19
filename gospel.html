@@ -4,12 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gospel Section</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { background: #0b1a30; }
 
   .gospel-section {
-    font-family: 'Inter', sans-serif;
+    font-family: 'DM Sans', sans-serif;
     background: #0b1a30;
     width: 100%;
   }
@@ -185,7 +188,7 @@
       letter-spacing: 0.14em;
       text-transform: uppercase;
       color: rgba(201,167,92,0.75);
-      font-family: 'Inter', sans-serif;
+      font-family: 'DM Sans', sans-serif;
       transition: opacity 0.3s;
     }
     .gospel-panel.expanded::after { opacity: 0; }
@@ -351,6 +354,7 @@
       }
     }
     if (window.ResizeObserver) new ResizeObserver(send).observe(section);
+    if (document.fonts) document.fonts.ready.then(send);
     window.addEventListener('load', send);
     window.addEventListener('resize', send);
     setTimeout(send, 300);
