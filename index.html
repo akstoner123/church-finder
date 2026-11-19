@@ -132,6 +132,9 @@
       spin();
     });
     ['mousedown', 'touchstart', 'wheel', 'dragstart'].forEach(ev => map.on(ev, stopSpin));
+    // Safeguard: if the embedding page resizes or reveals the map late, redraw at the right size
+    if (window.ResizeObserver) new ResizeObserver(() => map.resize()).observe(document.getElementById('map'));
+    if (window.IntersectionObserver) new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { map.resize(); map.triggerRepaint(); } }).observe(document.getElementById('map'));
   }
 
   // Slow globe spin until the visitor interacts with the map or searches
