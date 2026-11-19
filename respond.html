@@ -85,13 +85,18 @@
     <div class="content">
       <span class="num">05 — Take a next step</span>
       <h2 class="title" id="step5-title">Now find a church near you</h2>
-      <p>Faith grows in community. Find a church near you that preaches this gospel.</p>
-      <span class="btn btn-ghost" aria-hidden="true">See churches near me ↓</span>
+      <p id="step5-text">Faith grows in community. Find a church near you that preaches this gospel.</p>
+      <span class="btn btn-ghost" id="step5-btn" aria-hidden="true">See churches near me ↓</span>
     </div>
   </section>
 
 </div>
 <script>
+  // When the homepage shows the map above this section (?map=top), point back up to it
+  if (/[?&]map=top\b/.test(location.search)) {
+    document.getElementById('step5-text').textContent = 'Faith grows in community. Use the church map at the top of this page to find a church near you that preaches this gospel.';
+    document.getElementById('step5-btn').textContent = 'Back to the church map \u2191';
+  }
   // Buttons tell the homepage what to do (scroll to the form or the map)
   document.querySelectorAll('[data-msg]').forEach(function (el) {
     function go(e) { e.stopPropagation(); if (window.parent !== window) window.parent.postMessage({ type: el.getAttribute('data-msg') }, '*'); }
