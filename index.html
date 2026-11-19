@@ -6,14 +6,12 @@
   <title>Church Finder</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css"/>
+  <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; }
-    #map { width: 100%; height: 100vh; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0b1a30; }
+    #map { width: 100%; height: 100vh; background: #0b1a30; }
     #search-bar { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); z-index: 1000; background: white; border-radius: 50px; box-shadow: 0 4px 24px rgba(0,0,0,0.18); padding: 8px 10px 8px 18px; display: flex; align-items: center; gap: 8px; min-width: 340px; max-width: 92vw; }
     #search-bar .logo { font-family: 'Cormorant Garamond', serif; font-size: 1rem; font-weight: 600; color: #1a1815; white-space: nowrap; flex-shrink: 0; }
     #search-bar .divider { width: 1px; height: 18px; background: #e8e4de; flex-shrink: 0; }
@@ -27,12 +25,11 @@
     #clearBtn.visible { display: block; }
     #result-pill { position: absolute; top: 72px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(26,24,21,0.78); color: white; font-family: 'DM Sans', sans-serif; font-size: 0.75rem; font-weight: 500; padding: 5px 14px; border-radius: 50px; white-space: nowrap; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
     #result-pill.show { opacity: 1; }
-    .leaflet-popup-content-wrapper { border-radius: 12px !important; box-shadow: 0 6px 32px rgba(0,0,0,0.16) !important; padding: 0 !important; overflow: hidden !important; }
-    .leaflet-popup-content { margin: 0 !important; min-width: 220px !important; max-width: 260px !important; }
-    .leaflet-popup-tip-container { margin-top: -1px !important; }
+    .maplibregl-popup-content { border-radius: 12px !important; box-shadow: 0 6px 32px rgba(0,0,0,0.16) !important; padding: 0 !important; overflow: hidden; min-width: 220px; max-width: 260px; }
+    .maplibregl-popup-close-button { font-size: 18px; color: #999; padding: 0 6px; }
     .popup-inner { padding: 14px 16px 12px; font-family: 'DM Sans', sans-serif; }
-    .popup-denom { font-size: 0.62rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: #b8955a; margin-bottom: 3px; }
-    .popup-name { font-family: 'Cormorant Garamond', serif; font-size: 1.1rem; font-weight: 600; color: #1a1815; line-height: 1.25; margin-bottom: 8px; }
+    .popup-denom { font-size: 0.62rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: #b8955a; margin-bottom: 3px; padding-right: 14px; }
+    .popup-name { font-family: 'Cormorant Garamond', serif; font-size: 1.1rem; font-weight: 600; color: #1a1815; line-height: 1.25; margin-bottom: 8px; padding-right: 14px; }
     .popup-row { font-size: 0.78rem; color: #6b6762; line-height: 1.5; margin-bottom: 2px; }
     .popup-row a { color: #4a7fa5; text-decoration: none; font-weight: 500; }
     .popup-dir { display: block; margin-top: 10px; background: #2a2825; color: white; text-align: center; border-radius: 6px; padding: 7px; font-size: 0.78rem; font-weight: 500; text-decoration: none; transition: background 0.2s; }
@@ -66,32 +63,112 @@
 <div id="result-pill"></div>
 <div id="toast"></div>
 <div id="map-overlay" onclick="activateMap()">
-  <div class="ov-icon">🗺️</div>
+  <div class="ov-icon">🌍</div>
   <div class="ov-title">Tap to interact with map</div>
   <div class="ov-hint">Scroll past to continue browsing</div>
 </div>
 <script>
-  const API_URL = 'https://script.google.com/macros/s/AKfycbz4WWfiJCPMbc9ZMidVBmjgQmE_0Wiy9eJPzpjH4-n7_ZE4J_Xsvvv_JgqbQ8wVVRhy8g/exec';
-  let map, clusterGroup, churches = [], searchCircle = null;
+  const START = { center: [-40, 28], zoom: 2 };
+  const GOLD = '#b8955a', DARK = '#2a2825';
+  let map, churches = [], popup = null, spinning = true, mapReady = false, dataReady = false;
+  const byId = {};
+
   function isMobile() { return /Android|iPhone|iPad|iPod|Mobile|Touch/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1 || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches); }
-  window.addEventListener('load', function() { if (isMobile()) document.getElementById('map-overlay').classList.add('mobile'); initMap(); });
-  function activateMap() { document.getElementById('map-overlay').classList.add('active'); }
+  window.addEventListener('load', function() { if (isMobile()) document.getElementById('map-overlay').classList.add('mobile'); initMap(); loadChurches(); });
+  function activateMap() { document.getElementById('map-overlay').classList.add('active'); stopSpin(); }
   document.addEventListener('touchstart', function(e) { const o = document.getElementById('map-overlay'); if (!o.classList.contains('active')) return; if (!document.getElementById('map').contains(e.target)) o.classList.remove('active'); }, { passive: true });
+
   const toTitle = s => s ? s.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase()) : '';
-  const churchIcon = L.divIcon({ html: '<div style="width:30px;height:30px;background:#2a2825;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.35);border:2px solid #b8955a;">⛪</div>', className: '', iconSize: [30,30], iconAnchor: [15,15], popupAnchor: [0,-18] });
-  const activeIcon = L.divIcon({ html: '<div style="width:36px;height:36px;background:#b8955a;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 3px 14px rgba(0,0,0,0.4);border:2.5px solid white;">⛪</div>', className: '', iconSize: [36,36], iconAnchor: [18,18], popupAnchor: [0,-20] });
-  function clusterIcon(cluster) { const n = cluster.getChildCount(); const size = n >= 20 ? 48 : n >= 10 ? 42 : 36; const fs = Math.round(size * 0.5); return L.divIcon({ html: '<div style="width:' + size + 'px;height:' + size + 'px;background:#2a2825;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:' + fs + 'px;box-shadow:0 3px 12px rgba(0,0,0,0.4);border:2.5px solid #b8955a;">⛪</div>', className: '', iconSize: [size,size], iconAnchor: [size/2,size/2] }); }
-  function initMap() {
-    map = L.map('map', { zoomControl: true, scrollWheelZoom: false, tap: false }).setView([39.5, -98.35], 5);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map);
-    clusterGroup = L.markerClusterGroup({ iconCreateFunction: clusterIcon, maxClusterRadius: 80, spiderfyOnMaxZoom: true, showCoverageOnHover: false, zoomToBoundsOnClick: true, disableClusteringAtZoom: 11 });
-    map.addLayer(clusterGroup);
-    loadChurches();
-  }
-  function loadChurches() { fetch('churches.json').then(r => r.json()).then(data => { churches = (data.churches || []).map(c => ({ ...c, lat: parseFloat(c.lat) || null, lng: parseFloat(c.lng) || null, id: String(c.id) })); renderMarkers(churches); const pinned = churches.filter(c => c.lat && c.lng); if (pinned.length > 1) map.fitBounds(L.latLngBounds(pinned.map(c => [c.lat, c.lng])).pad(0.15), { maxZoom: 8 }); else if (pinned.length === 1) map.setView([pinned[0].lat, pinned[0].lng], 12); }).catch(() => showToast('Could not load churches — please refresh')); }
-  function renderMarkers(list) { clusterGroup.clearLayers(); list.forEach(c => { if (!c.lat || !c.lng) return; const du = 'https://www.google.com/maps/dir/?api=1&destination=' + (c.address || c.city ? encodeURIComponent(joinAddr([c.address, c.city, [c.state, c.zip].filter(Boolean).join(' ')])) : c.lat + ',' + c.lng); const popupHtml = '<div class="popup-inner">' + (c.denom ? '<div class="popup-denom">' + c.denom + '</div>' : '') + '<div class="popup-name">' + toTitle(c.name) + '</div>' + '<div class="popup-row">📍 ' + joinAddr([toTitle(c.address), toTitle(c.city), [c.state, c.zip].filter(Boolean).join(' ')]) + '</div>' + (c.phone ? '<div class="popup-row">📞 ' + c.phone + '</div>' : '') + (c.times ? '<div class="popup-row">🕐 ' + c.times + '</div>' : '') + (c.website ? '<div class="popup-row">🌐 <a href="' + c.website + '" target="_blank">' + c.website.replace(/^https?:\/\/(www\.)?/,'') + '</a></div>' : '') + '<a class="popup-dir" href="' + du + '" target="_blank">🗺 Get Directions</a></div>'; const m = L.marker([c.lat, c.lng], { icon: churchIcon }).bindPopup(L.popup({ maxWidth: 280 }).setContent(popupHtml)); m.on('popupopen', () => m.setIcon(activeIcon)); m.on('popupclose', () => m.setIcon(churchIcon)); m.churchId = c.id; clusterGroup.addLayer(m); }); }
-  function haversine(lat1,lng1,lat2,lng2) { const R=3958.8,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180; return R*2*Math.asin(Math.sqrt(Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2)); }
   const joinAddr = parts => parts.filter(p => p && String(p).trim()).join(', ');
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const emptyFC = () => ({ type: 'FeatureCollection', features: [] });
+
+  // Round ⛪ badge in the brand colors, drawn once and used for churches and clusters
+  function churchBadge(size, fill, border) {
+    const r = window.devicePixelRatio > 1 ? 2 : 1, c = document.createElement('canvas'); c.width = c.height = size * r;
+    const g = c.getContext('2d'); g.scale(r, r);
+    g.shadowColor = 'rgba(0,0,0,0.35)'; g.shadowBlur = 4; g.shadowOffsetY = 1;
+    g.beginPath(); g.arc(size / 2, size / 2, size / 2 - 3, 0, Math.PI * 2); g.fillStyle = fill; g.fill();
+    g.shadowColor = 'transparent'; g.lineWidth = 2; g.strokeStyle = border; g.stroke();
+    g.font = Math.round(size * 0.45) + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('⛪', size / 2, size / 2 + 1);
+    return { image: g.getImageData(0, 0, c.width, c.height), pixelRatio: r };
+  }
+
+  function initMap() {
+    map = new maplibregl.Map({ container: 'map', style: 'https://tiles.openfreemap.org/styles/liberty', center: START.center, zoom: START.zoom, scrollZoom: false, attributionControl: { compact: true } });
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
+    map.on('style.load', () => {
+      map.setProjection({ type: 'globe' });
+      map.setSky({ 'sky-color': '#0b1a30', 'horizon-color': '#c9d6e8', 'fog-color': '#c9d6e8', 'sky-horizon-blend': 0.5, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.8, 'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 5, 1, 7, 0] });
+    });
+    map.on('load', () => {
+      const b = churchBadge(30, DARK, GOLD), a = churchBadge(30, GOLD, '#ffffff');
+      map.addImage('church', b.image, { pixelRatio: b.pixelRatio });
+      map.addImage('church-active', a.image, { pixelRatio: a.pixelRatio });
+      map.addSource('search-area', { type: 'geojson', data: emptyFC() });
+      map.addLayer({ id: 'search-fill', type: 'fill', source: 'search-area', paint: { 'fill-color': GOLD, 'fill-opacity': 0.08 } });
+      map.addLayer({ id: 'search-line', type: 'line', source: 'search-area', paint: { 'line-color': GOLD, 'line-width': 1.5, 'line-dasharray': [3, 3] } });
+      map.addSource('churches', { type: 'geojson', data: emptyFC(), cluster: true, clusterRadius: 50, clusterMaxZoom: 10 });
+      map.addLayer({ id: 'clusters', type: 'symbol', source: 'churches', filter: ['has', 'point_count'], layout: { 'icon-image': 'church', 'icon-size': ['step', ['get', 'point_count'], 1.2, 10, 1.4, 20, 1.6], 'icon-allow-overlap': true, 'icon-ignore-placement': true } });
+      map.addLayer({ id: 'church-points', type: 'symbol', source: 'churches', filter: ['!', ['has', 'point_count']], layout: { 'icon-image': 'church', 'icon-allow-overlap': true, 'icon-ignore-placement': true } });
+      map.addLayer({ id: 'church-active', type: 'symbol', source: 'churches', filter: ['==', ['get', 'id'], ''], layout: { 'icon-image': 'church-active', 'icon-size': 1.2, 'icon-allow-overlap': true, 'icon-ignore-placement': true } });
+      map.on('click', 'clusters', async e => {
+        stopSpin();
+        const f = e.features[0];
+        const z = await map.getSource('churches').getClusterExpansionZoom(f.properties.cluster_id);
+        map.easeTo({ center: f.geometry.coordinates, zoom: Math.min(z + 0.5, 14) });
+      });
+      map.on('click', 'church-points', e => { stopSpin(); openPopup(e.features[0]); });
+      ['clusters', 'church-points'].forEach(l => { map.on('mouseenter', l, () => map.getCanvas().style.cursor = 'pointer'); map.on('mouseleave', l, () => map.getCanvas().style.cursor = ''); });
+      mapReady = true; showData(churches);
+      map.on('moveend', spin);
+      spin();
+    });
+    ['mousedown', 'touchstart', 'wheel', 'dragstart'].forEach(ev => map.on(ev, stopSpin));
+  }
+
+  // Slow globe spin until the visitor interacts with the map or searches
+  function spin() { if (!spinning || map.getZoom() > 3) return; const c = map.getCenter(); c.lng -= 4; map.easeTo({ center: c, duration: 1000, easing: t => t }); }
+  function stopSpin() { if (!spinning) return; spinning = false; if (map) map.stop(); }
+
+  function toFC(list) { return { type: 'FeatureCollection', features: list.filter(c => c.lat && c.lng).map(c => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [c.lng, c.lat] }, properties: { id: c.id } })) }; }
+  function showData(list) { if (!mapReady || !dataReady) return; closePopup(); map.getSource('churches').setData(toFC(list)); }
+
+  function loadChurches() {
+    fetch('churches.json').then(r => r.json()).then(data => {
+      churches = (data.churches || []).map(c => ({ ...c, lat: parseFloat(c.lat) || null, lng: parseFloat(c.lng) || null, id: String(c.id) }));
+      churches.forEach(c => byId[c.id] = c);
+      dataReady = true; showData(churches);
+    }).catch(() => showToast('Could not load churches — please refresh'));
+  }
+
+  function popupHtml(c) {
+    const du = 'https://www.google.com/maps/dir/?api=1&destination=' + (c.address || c.city ? encodeURIComponent(joinAddr([c.address, c.city, [c.state, c.zip].filter(Boolean).join(' ')])) : c.lat + ',' + c.lng);
+    return '<div class="popup-inner">' + (c.denom ? '<div class="popup-denom">' + esc(c.denom) + '</div>' : '') + '<div class="popup-name">' + esc(toTitle(c.name)) + '</div>' +
+      '<div class="popup-row">📍 ' + esc(joinAddr([toTitle(c.address), toTitle(c.city), [c.state, c.zip].filter(Boolean).join(' ')])) + '</div>' +
+      (c.phone ? '<div class="popup-row">📞 ' + esc(c.phone) + '</div>' : '') + (c.times ? '<div class="popup-row">🕐 ' + esc(c.times) + '</div>' : '') +
+      (c.website ? '<div class="popup-row">🌐 <a href="' + esc(c.website) + '" target="_blank" rel="noopener">' + esc(c.website.replace(/^https?:\/\/(www\.)?/, '')) + '</a></div>' : '') +
+      '<a class="popup-dir" href="' + du + '" target="_blank" rel="noopener">🗺 Get Directions</a></div>';
+  }
+  function openPopup(f) {
+    const c = byId[f.properties.id]; if (!c) return;
+    closePopup();
+    map.setFilter('church-active', ['==', ['get', 'id'], c.id]);
+    popup = new maplibregl.Popup({ offset: 18, maxWidth: '280px' }).setLngLat(f.geometry.coordinates).setHTML(popupHtml(c)).addTo(map);
+    popup.on('close', () => { map.setFilter('church-active', ['==', ['get', 'id'], '']); popup = null; });
+  }
+  function closePopup() { if (popup) popup.remove(); }
+
+  function haversine(lat1,lng1,lat2,lng2) { const R=3958.8,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180; return R*2*Math.asin(Math.sqrt(Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2)); }
+  function circlePolygon(lng, lat, miles) {
+    const pts = [], d = miles / 3958.8, la = lat * Math.PI / 180, lo = lng * Math.PI / 180;
+    for (let i = 0; i <= 64; i++) { const b = i / 64 * 2 * Math.PI; const la2 = Math.asin(Math.sin(la) * Math.cos(d) + Math.cos(la) * Math.sin(d) * Math.cos(b)); const lo2 = lo + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(la), Math.cos(d) - Math.sin(la) * Math.sin(la2)); pts.push([lo2 * 180 / Math.PI, la2 * 180 / Math.PI]); }
+    return { type: 'Polygon', coordinates: [pts] };
+  }
+  function boundsOf(coords) { const b = new maplibregl.LngLatBounds(); coords.forEach(p => b.extend(p)); return b; }
+  function geoCoords(g) { return g.type === 'Polygon' ? g.coordinates[0] : g.coordinates.flatMap(p => p[0]); }
+
   // Places big enough that "churches inside it" beats "churches within X miles of its center"
   const AREA_TYPES = ['country','state','province','region','state_district','county','territory','archipelago'];
   function isAreaResult(r) { return r.geojson && /Polygon/.test(r.geojson.type) && (AREA_TYPES.includes(r.addresstype) || (r.place_rank && r.place_rank <= 10)); }
@@ -102,7 +179,7 @@
   function placeLabel(r) { return (r.name || r.display_name.split(',')[0]).trim(); }
   function geocode(q) {
     const base = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&polygon_geojson=1&polygon_threshold=0.005&limit=8&accept-language=en';
-    // Bare 5-digit numbers are almost always US ZIPs (keeps the old behavior working)
+    // Bare 5-digit numbers are almost always US ZIPs
     const url = /^\d{5}$/.test(q) ? base + '&postalcode=' + q + '&countrycodes=us' : base + '&q=' + encodeURIComponent(q);
     return fetch(url).then(r => r.json()).then(list => {
       if (!list.length) return null;
@@ -114,34 +191,43 @@
   function doSearch() {
     const q = document.getElementById('placeInput').value.trim();
     if (q.length < 2) { showToast('Enter a city, state, province or postcode'); return; }
+    if (!mapReady || !dataReady) { showToast('Map is still loading…'); return; }
+    stopSpin();
     const radius = parseFloat(document.getElementById('radiusSelect').value);
     showToast('Searching…');
-    geocode(q).then(place => {
-      if (!place) { showToast('Place not found — try adding the country'); return; }
-      if (searchCircle) { map.removeLayer(searchCircle); searchCircle = null; }
+    return geocode(q).then(place => {
+      if (!place) { showToast('Place not found — try adding the country'); return 'not found'; }
       const center = { lat: parseFloat(place.lat), lng: parseFloat(place.lon) };
-      const label = placeLabel(place);
+      const label = placeLabel(place), area = isAreaResult(place);
       const pinned = churches.filter(c => c.lat && c.lng);
-      let found, where;
-      if (isAreaResult(place)) {
-        // State / province / country: show every church inside its border
-        searchCircle = L.geoJSON(place.geojson, { style: { color: '#b8955a', fillColor: '#b8955a', fillOpacity: 0.06, weight: 1.5, dashArray: '5,5' }, interactive: false }).addTo(map);
-        found = pinned.filter(c => inGeo(c.lng, c.lat, place.geojson));
+      let found, where, shape;
+      if (area) {
+        // State / province / country: every church inside its border
+        shape = place.geojson;
+        found = pinned.filter(c => inGeo(c.lng, c.lat, shape));
         where = 'in ' + label;
       } else {
         // City / town / postcode: radius around it
-        searchCircle = L.circle([center.lat, center.lng], { radius: radius * 1609.34, color: '#b8955a', fillColor: '#b8955a', fillOpacity: 0.06, weight: 1.5, dashArray: '5,5', interactive: false }).addTo(map);
+        shape = circlePolygon(center.lng, center.lat, radius);
         found = pinned.map(c => ({ ...c, dist: haversine(center.lat, center.lng, c.lat, c.lng) })).filter(c => c.dist <= radius).sort((a, b) => a.dist - b.dist);
         where = 'within ' + radius + ' mi of ' + label;
       }
-      renderMarkers(found);
+      map.getSource('search-area').setData({ type: 'Feature', geometry: shape, properties: {} });
+      showData(found);
       document.getElementById('clearBtn').classList.add('visible');
-      const n = found.length, noun = 'church' + (n !== 1 ? 'es' : '');
-      if (n) { map.fitBounds(L.latLngBounds(found.map(c => [c.lat, c.lng])).pad(0.3), { maxZoom: 13 }); showPill('Found ' + n + ' ' + noun + ' ' + where); showToast('Found ' + n + ' ' + noun); }
-      else { if (searchCircle.getBounds) map.fitBounds(searchCircle.getBounds()); else map.setView([center.lat, center.lng], 11); showPill('No churches found ' + where + (isAreaResult(place) ? '' : ' — try wider')); showToast('No churches found'); }
+      const n = found.length, noun = 'church' + (n !== 1 ? 'es' : ''), msg = (n ? 'Found ' + n + ' ' + noun + ' ' : 'No churches found ') + where;
+      const pad = { top: 90, bottom: 40, left: 40, right: 40 };
+      if (n) { map.fitBounds(boundsOf(found.map(c => [c.lng, c.lat])), { padding: pad, maxZoom: 13, duration: 1800 }); showPill(msg); showToast('Found ' + n + ' ' + noun); }
+      else { map.fitBounds(boundsOf(geoCoords(shape)), { padding: pad, duration: 1800 }); showPill(msg + (area ? '' : ' — try wider')); showToast('No churches found'); }
+      return msg;
     }).catch(() => showToast('Search failed — check your connection'));
   }
-  function doClear() { document.getElementById('placeInput').value=''; document.getElementById('clearBtn').classList.remove('visible'); if(searchCircle){map.removeLayer(searchCircle);searchCircle=null;} hidePill(); renderMarkers(churches); const pinned=churches.filter(c=>c.lat&&c.lng); if(pinned.length>1)map.fitBounds(L.latLngBounds(pinned.map(c=>[c.lat,c.lng])).pad(0.15),{maxZoom:8}); }
+  function doClear() {
+    document.getElementById('placeInput').value = '';
+    document.getElementById('clearBtn').classList.remove('visible');
+    if (mapReady) { map.getSource('search-area').setData(emptyFC()); showData(churches); map.flyTo({ center: START.center, zoom: START.zoom, duration: 1800 }); }
+    hidePill();
+  }
   let pillTimer; function showPill(msg){const p=document.getElementById('result-pill');p.textContent=msg;p.classList.add('show');clearTimeout(pillTimer);pillTimer=setTimeout(()=>p.classList.remove('show'),4000);} function hidePill(){document.getElementById('result-pill').classList.remove('show');}
   let toastTimer; function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2500);}
   document.getElementById('placeInput').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
