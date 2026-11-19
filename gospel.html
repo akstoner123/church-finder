@@ -194,6 +194,12 @@
     .gospel-panel.expanded::after { opacity: 0; }
   }
 
+  /* ── Narrow windows (any device): one column ── */
+  @media (max-width: 600px) {
+    .gospel-grid { grid-template-columns: 1fr; }
+    .gospel-panel { min-height: 200px; }
+  }
+
   /* ── Narrow phones ── */
   @media (max-width: 400px) {
     .gospel-panel { padding: 1.75rem 1.25rem; }
