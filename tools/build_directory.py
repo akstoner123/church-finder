@@ -16,7 +16,7 @@ from datetime import date
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "browse")
-BASE = os.environ.get("DIRECTORY_BASE_URL", "https://truths-calling-church-finder.web.app/browse").rstrip("/")
+BASE = os.environ.get("DIRECTORY_BASE_URL", "https://churches.truthscalling.com/browse").rstrip("/")
 MAIN = "https://www.truthscalling.com"
 TODAY = date.today().isoformat()
 
